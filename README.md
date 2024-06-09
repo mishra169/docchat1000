@@ -10,4 +10,23 @@ For implementing the Knowledge graph in this project we have used RAPTOR-RECURSI
 FOR TREE-ORGANIZED RETRIEVAL. To know more about the RAPTOR and graphs tree refer to https://arxiv.org/pdf/2401.18059
 
 Other used tools:
+
 Llama GPT: LlamaGPT. A self-hosted, offline, ChatGPT-like chatbot, powered by Llama 2. 100% private, with no data leaving your device.
+Streamlit: To conver into app.
+
+Architecture:
+Embedding Model:
+![image](https://github.com/mishra169/docchat1000/assets/104723673/f0a729db-75f5-44be-aecd-d2e1462d8840)
+LlamaQAModel:
+![image](https://github.com/mishra169/docchat1000/assets/104723673/cc4e42bc-47fc-4e77-b72e-f5cb445a96ce)
+
+The following model is hosted at:
+https://docchat1000.streamlit.app/ using streamlit
+
+The interface looks like
+![image](https://github.com/mishra169/docchat1000/assets/104723673/20ab39a8-94ea-4372-b1be-27ff7938bc46)
+
+For More information refer to this doc
+
+
+
