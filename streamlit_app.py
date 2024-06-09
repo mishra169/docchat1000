@@ -1,10 +1,8 @@
 import os
-import torch
 from raptor import RetrievalAugmentationConfig, RetrievalAugmentation, BaseQAModel, BaseEmbeddingModel
 from transformers import AutoTokenizer, pipeline, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.replicate import Replicate
 from transformers import AutoTokenizer
 import streamlit as st
