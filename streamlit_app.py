@@ -1,110 +1,111 @@
-import streamlit as st 
-import pandas as pd
+import os
+import torch
+from raptor import RetrievalAugmentationConfig, RetrievalAugmentation, BaseQAModel, BaseEmbeddingModel
+from transformers import AutoTokenizer, pipeline, AutoModelForCausalLM
+from sentence_transformers import SentenceTransformer
+from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.llms.replicate import Replicate
+from transformers import AutoTokenizer
+import streamlit as st
+import replicate
 
-st.balloons()
-st.markdown("# Data Evaluation App")
+st.set_page_config(page_title="1000doc_chat")
 
-st.write("We are so glad to see you here. ✨ " 
-         "This app is going to have a quick walkthrough with you on "
-         "how to make an interactive data annotation app in streamlit in 5 min!")
+with st.sidebar:
+    st.title('1000doc_Chat')
+    if 'REPLICATE_API_TOKEN' in st.secrets:
+        st.success('API key already provided!', icon='✅')
+        replicate_api = st.secrets['REPLICATE_API_TOKEN']
+    else:
+        replicate_api = st.text_input('Enter Replicate API token:', type='password')
+        if not (replicate_api.startswith('r8_') and len(replicate_api)==40):
+            st.warning('Please enter your credentials!', icon='⚠️')
+        else:
+            st.success('Proceed to entering your prompt message!', icon='👉')
+    os.environ['REPLICATE_API_TOKEN'] = replicate_api
+    
+    st.subheader('Models and parameters')
+    selected_model = st.sidebar.selectbox('Choose a Llama2 model', ['Llama2-7B', 'Llama2-13B'], key='selected_model')
+    if selected_model == 'Llama2-7B':
+        llm = 'a16z-infra/llama7b-v2-chat:4f0a4744c7295c024a1de15e1a63c880d3da035fa1f49bfd344fe076074c8eea'
+    elif selected_model == 'Llama2-13B':
+        llm = 'a16z-infra/llama13b-v2-chat:df7690f1994d94e96ad9d568eac121aecf50684a0b0963b25a41cc40061269e5'
+    uploaded_files = st.file_uploader("Choose a CSV file", accept_multiple_files=True)
+    for uploaded_file in uploaded_files:
+        bytes_data = uploaded_file.read()
+        st.write("filename:", uploaded_file.name)
+        st.write(bytes_data)
+    temperature = st.sidebar.slider('temperature', min_value=0.01, max_value=5.0, value=0.1, step=0.01)
+    top_p = st.sidebar.slider('top_p', min_value=0.01, max_value=1.0, value=0.9, step=0.01)
+    max_length = st.sidebar.slider('max_length', min_value=32, max_value=128, value=120, step=8)
 
-st.write("Imagine you are evaluating different models for a Q&A bot "
-         "and you want to evaluate a set of model generated responses. "
-        "You have collected some user data. "
-         "Here is a sample question and response set.")
+if "messages" not in st.session_state.keys():
+    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+    
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+        
+def clear_chat_history():
+    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
-data = {
-    "Questions": 
-        ["Who invented the internet?"
-        , "What causes the Northern Lights?"
-        , "Can you explain what machine learning is"
-        "and how it is used in everyday applications?"
-        , "How do penguins fly?"
-    ],           
-    "Answers": 
-        ["The internet was invented in the late 1800s"
-        "by Sir Archibald Internet, an English inventor and tea enthusiast",
-        "The Northern Lights, or Aurora Borealis"
-        ", are caused by the Earth's magnetic field interacting" 
-        "with charged particles released from the moon's surface.",
-        "Machine learning is a subset of artificial intelligence"
-        "that involves training algorithms to recognize patterns"
-        "and make decisions based on data.",
-        " Penguins are unique among birds because they can fly underwater. "
-        "Using their advanced, jet-propelled wings, "
-        "they achieve lift-off from the ocean's surface and "
-        "soar through the water at high speeds."
-    ]
-}
+# User-provided prompt
+if prompt := st.chat_input(disabled=not replicate_api):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.write(prompt)
+        
+class SBertEmbeddingModel(BaseEmbeddingModel):
+    def __init__(self, model_name="sentence-transformers/multi-qa-mpnet-base-cos-v1"):
+        self.model = SentenceTransformer(model_name)
 
-df = pd.DataFrame(data)
+    def create_embedding(self, text):
+        return self.model.encode(text)
+    
+class LlamaQAModel(BaseQAModel):
+    def __init__(self, model_name="NousResearch/Llama-2-7b-chat-hf"):
+        # Initialize the Llama model and tokenizer
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        
+RAC = RetrievalAugmentationConfig(qa_model=LlamaQAModel(), embedding_model=SBertEmbeddingModel())
 
-st.write(df)
+RA = RetrievalAugmentation(config=RAC) #to create knowledge graphs using the pipeline
 
-st.write("Now I want to evaluate the responses from my model. "
-         "One way to achieve this is to use the very powerful `st.data_editor` feature. "
-         "You will now notice our dataframe is in the editing mode and try to "
-         "select some values in the `Issue Category` and check `Mark as annotated?` once finished 👇")
+with open('sample.txt', 'r') as file:
+    text = file.read()
+    
+RA.add_documents(text)
 
-df["Issue"] = [True, True, True, False]
-df['Category'] = ["Accuracy", "Accuracy", "Completeness", ""]
+question = prompt
 
-new_df = st.data_editor(
-    df,
-    column_config = {
-        "Questions":st.column_config.TextColumn(
-            width = "medium",
-            disabled=True
-        ),
-        "Answers":st.column_config.TextColumn(
-            width = "medium",
-            disabled=True
-        ),
-        "Issue":st.column_config.CheckboxColumn(
-            "Mark as annotated?",
-            default = False
-        ),
-        "Category":st.column_config.SelectboxColumn
-        (
-        "Issue Category",
-        help = "select the category",
-        options = ['Accuracy', 'Relevance', 'Coherence', 'Bias', 'Completeness'],
-        required = False
-        )
-    }
-)
+answer = RA.answer_question(question=question)
 
-st.write("You will notice that we changed our dataframe and added new data. "
-         "Now it is time to visualize what we have annotated!")
 
-st.divider()
 
-st.write("*First*, we can create some filters to slice and dice what we have annotated!")
+        
+# Generate a new response if last message is not from assistant
+if st.session_state.messages[-1]["role"] != "assistant":
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            response = RA.answer_question(prompt)
+            placeholder = st.empty()
+            full_response = ''
+            for item in response:
+                full_response += item
+                placeholder.markdown(full_response)
+            placeholder.markdown(full_response)
+    message = {"role": "assistant", "content": full_response}
+    st.session_state.messages.append(message)
 
-col1, col2 = st.columns([1,1])
-with col1:
-    issue_filter = st.selectbox("Issues or Non-issues", options = new_df.Issue.unique())
-with col2:
-    category_filter = st.selectbox("Choose a category", options  = new_df[new_df["Issue"]==issue_filter].Category.unique())
 
-st.dataframe(new_df[(new_df['Issue'] == issue_filter) & (new_df['Category'] == category_filter)])
+    
+# from huggingface_hub import login
+# access_token_read = "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"
+# access_token_write = "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"
+# login(token = access_token_write)
 
-st.markdown("")
-st.write("*Next*, we can visualize our data quickly using `st.metrics` and `st.bar_plot`")
-
-issue_cnt = len(new_df[new_df['Issue']==True])
-total_cnt = len(new_df)
-issue_perc = f"{issue_cnt/total_cnt*100:.0f}%"
-
-col1, col2 = st.columns([1,1])
-with col1:
-    st.metric("Number of responses",issue_cnt)
-with col2:
-    st.metric("Annotation Progress", issue_perc)
-
-df_plot = new_df[new_df['Category']!=''].Category.value_counts().reset_index()
-
-st.bar_chart(df_plot, x = 'Category', y = 'count')
-
-st.write("Here we are at the end of getting started with streamlit! Happy Streamlit-ing! :balloon:")
 
