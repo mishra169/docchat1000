@@ -2,11 +2,8 @@ import os
 from raptor import RetrievalAugmentationConfig, RetrievalAugmentation, BaseQAModel, BaseEmbeddingModel
 from transformers import AutoTokenizer, pipeline, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
-from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
-from llama_index.llms.replicate import Replicate
 from transformers import AutoTokenizer
 import streamlit as st
-import replicate
 
 st.set_page_config(page_title="1000doc_chat")
 
