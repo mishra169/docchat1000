@@ -26,6 +26,11 @@ https://docchat1000.streamlit.app/ using streamlit
 The interface looks like
 ![image](https://github.com/mishra169/docchat1000/assets/104723673/20ab39a8-94ea-4372-b1be-27ff7938bc46)
 
+To host this app locally:
+1. Clone the git rep
+2. pip install > requirements.txt
+3. run demo.py
+
 For More information refer to this doc
 
 
